@@ -9,7 +9,8 @@ import os
 import random
 
 flags = tf.app.flags
-flags.DEFINE_string('output_path', '', 'Path to output TFRecord')
+flags.DEFINE_string('tf_output_path', 'tf/mnist_tf_record', 'Path to output TFRecord')
+flags.DEFINE_string('jpg_output_path', 'JPEGImages', 'Path to output mnist jpegs')
 FLAGS = flags.FLAGS
 
 def convert(size, box):
@@ -49,95 +50,82 @@ def save_image(filename, data_array):
 
   return convert((img.width,img.height), (float(x), float(x+w), float(y), float(y+w)))
 
-# the data, shuffled and split between train and test sets
-(x_train, y_train), (x_test, y_test) = mnist.load_data()
 
-DIR_NAME = "JPEGImages"
-if not os.path.exists(DIR_NAME):
-  os.mkdir(DIR_NAME)
-
-LABEL_DIR_NAME = "labels"
-if not os.path.exists(LABEL_DIR_NAME):
-  os.mkdir(LABEL_DIR_NAME)
-
-
-def create_mnist_tf_example():
-  """Creates a tf.Example proto from sample cat image.
+def create_mnist_tf_examples(X, Y):
+  """Creates a tf.Example proto from mnist dataset.
 
   Args:
-      encoded_cat_image_data: The jpg encoded data of the cat image.
+      X: mnist dataset.
+      Y: mnist label array.
 
   Returns:
       example: The created tf.Example.
   """
 
-  j = 0
-  no = 0
+  mnist_tf_examples = []
 
-  for li in [x_train, x_test]:
-    j += 1
-    i = 0
-    print("[---------------------------------------------------------------]")
-    for x in li:
-      # Write Image file
-      filename = "{0}/{1:05d}.jpg".format(DIR_NAME, no)
-      print(filename)
-      ret = save_image(filename, x)
-      print(ret)
+  i = 0
+  for x in X:
 
-      # Write label file
-      label_filename = "{0}/{1:05d}.txt".format(LABEL_DIR_NAME, no)
-      print(label_filename)
-      f = open(label_filename, 'w')
+    # Write Image file
+    filename = "{0}/{1:05d}.jpg".format(FLAGS.jpg_output_path, i)
+    print(filename)
+    ret = save_image(filename, x)
+    print(ret)
 
-      y = 0
-      if j == 1:
-        y = y_train[i]
-      else:
-        y = y_test[i]
+    with tf.gfile.GFile(filename, 'rb') as fid:
+      encoded_jpg = fid.read()
 
-      str = "{0:d} {1:f} {2:f} {3:f} {4:f}".format(y, ret[0], ret[1], ret[2], ret[3])
-      f.write(str)
-      f.close()
+    y = Y[i]
 
-      height = 500
-      width = 375
-      image_format = b'jpg'
+    height = 500
+    width = 375
+    image_format = b'jpg'
 
-      xmins = ret[0]
-      xmaxs = ret[1]
-      ymins = ret[2]
-      ymaxs = ret[3]
-      classes_text = ['Cat']
-      classes = [y]
+    xmins = [ret[0]]
+    xmaxs = [ret[0] + ret[2]]
+    ymins = [ret[1]]
+    ymaxs = [ret[1] + ret[3]]
+    classes_text = [str(y).encode('utf8')]
+    classes = [y]
 
-      tf_example = tf.train.Example(features=tf.train.Features(feature={
-          'image/height': dataset_util.int64_feature(height),
-          'image/width': dataset_util.int64_feature(width),
-          'image/filename': dataset_util.bytes_feature(filename),
-          'image/source_id': dataset_util.bytes_feature(filename),
-          'image/encoded': dataset_util.bytes_feature(),
-          'image/format': dataset_util.bytes_feature(image_format),
-          'image/object/bbox/xmin': dataset_util.float_list_feature(xmins),
-          'image/object/bbox/xmax': dataset_util.float_list_feature(xmaxs),
-          'image/object/bbox/ymin': dataset_util.float_list_feature(ymins),
-          'image/object/bbox/ymax': dataset_util.float_list_feature(ymaxs),
-          'image/object/class/text': dataset_util.bytes_list_feature(classes_text),
-          'image/object/class/label': dataset_util.int64_list_feature(classes),
-      }))
+    tf_example = tf.train.Example(features=tf.train.Features(feature={
+        'image/height': dataset_util.int64_feature(height),
+        'image/width': dataset_util.int64_feature(width),
+        'image/filename': dataset_util.bytes_feature(filename.encode('utf8')),
+        'image/source_id': dataset_util.bytes_feature(filename.encode('utf8')),
+        'image/encoded': dataset_util.bytes_feature(encoded_jpg),
+        'image/format': dataset_util.bytes_feature(image_format),
+        'image/object/bbox/xmin': dataset_util.float_list_feature(xmins),
+        'image/object/bbox/xmax': dataset_util.float_list_feature(xmaxs),
+        'image/object/bbox/ymin': dataset_util.float_list_feature(ymins),
+        'image/object/bbox/ymax': dataset_util.float_list_feature(ymaxs),
+        'image/object/class/text': dataset_util.bytes_list_feature(classes_text),
+        'image/object/class/label': dataset_util.int64_list_feature(classes),
+    }))
 
-      i += 1
-      no += 1
+    i += 1
+    mnist_tf_examples.append(tf_example)
+
+  return mnist_tf_examples
 
 
 def main(_):
-  writer = tf.python_io.TFRecordWriter(FLAGS.output_path)
+  if not os.path.exists(FLAGS.jpg_output_path):
+    os.mkdir(FLAGS.jpg_output_path)
 
-  # TODO(user): Write code to read in your dataset to examples variable
+  output_dir = os.path.dirname(FLAGS.tf_output_path)
+  if not os.path.exists(output_dir):
+    os.mkdir(output_dir)
 
-  for example in examples:
-    tf_example = create_tf_example(example)
-    writer.write(tf_example.SerializeToString())
+  writer = tf.python_io.TFRecordWriter(FLAGS.tf_output_path)
+
+  # the data, shuffled and split between train and test sets
+  (x_train, y_train), (_, _) = mnist.load_data()
+
+  mnist_tf_examples = create_mnist_tf_examples(x_train, y_train)
+  for example in mnist_tf_examples:
+    writer.write(example.SerializeToString())
 
   writer.close()
 

@@ -13,24 +13,15 @@ flags.DEFINE_string('tf_output_path', 'tf/mnist_tf_record', 'Path to output TFRe
 flags.DEFINE_string('jpg_output_path', 'JPEGImages', 'Path to output mnist jpegs')
 FLAGS = flags.FLAGS
 
-def convert(size, box):
-  dw = 1./size[0]
-  dh = 1./size[1]
-  x = (box[0] + box[1])/2.0
-  y = (box[2] + box[3])/2.0
-  w = box[1] - box[0]
-  h = box[3] - box[2]
-  x = x*dw
-  w = w*dw
-  y = y*dh
-  h = h*dh
-  return (x,y,w,h)
+IMAGE_WIDTH = 50
+IMAGE_HEIGHT = 38
+
 
 def save_image(filename, data_array):
 
   #bgcolor = (0xff, 0xff, 0xff)
   bgcolor = (0x00, 0x00, 0xff)
-  screen = (500, 375)
+  screen = (IMAGE_WIDTH, IMAGE_HEIGHT)
 
   img = Image.new('RGB', screen, bgcolor)
 
@@ -38,7 +29,7 @@ def save_image(filename, data_array):
   mnist_img_invert = ImageOps.invert(mnist_img)
 
   #w = int(round(mnist_img.width * random.uniform(8.0, 10.0)))
-  w = int(mnist_img.width*10)
+  w = int(mnist_img.width)
   mnist_img_invert = mnist_img_invert.resize((w,w))
 
   #x = random.randint(0, img.width-w)
@@ -48,7 +39,7 @@ def save_image(filename, data_array):
   img.paste(mnist_img_invert, (x, y))
   img.save(filename)
 
-  return convert((img.width,img.height), (float(x), float(x+w), float(y), float(y+w)))
+  return float(x) / img.width, float(x+w) / img.width, float(y) / img.height, float(y+w) / img.height
 
 
 def create_mnist_tf_examples(X, Y):
@@ -78,14 +69,14 @@ def create_mnist_tf_examples(X, Y):
 
     y = Y[i]
 
-    height = 500
-    width = 375
+    height = IMAGE_HEIGHT
+    width = IMAGE_WIDTH
     image_format = b'jpg'
 
     xmins = [ret[0]]
-    xmaxs = [ret[0] + ret[2]]
-    ymins = [ret[1]]
-    ymaxs = [ret[1] + ret[3]]
+    xmaxs = [ret[1]]
+    ymins = [ret[2]]
+    ymaxs = [ret[3]]
     classes_text = [str(y).encode('utf8')]
     classes = [y]
 
@@ -106,6 +97,9 @@ def create_mnist_tf_examples(X, Y):
 
     i += 1
     mnist_tf_examples.append(tf_example)
+
+    if i > 1000:
+      break
 
   return mnist_tf_examples
 

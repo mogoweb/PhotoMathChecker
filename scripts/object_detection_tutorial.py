@@ -17,18 +17,31 @@ from object_detection.utils import ops as utils_ops
 if StrictVersion(tf.__version__) < StrictVersion('1.9.0'):
   raise ImportError('Please upgrade your TensorFlow installation to v1.9.* or later!')
 
-
 # Object detection imports
 from object_detection.utils import label_map_util
 
 from object_detection.utils import visualization_utils as vis_util
 
+# What model to download.
+MODEL_NAME = 'rfcn_resnet101_coco_2018_01_28'
+MODEL_FILE = MODEL_NAME + '.tar.gz'
+DOWNLOAD_BASE = 'http://download.tensorflow.org/models/object_detection/'
 
 # Path to frozen detection graph. This is the actual model that is used for the object detection.
-PATH_TO_FROZEN_GRAPH = 'mnist_graph/frozen_inference_graph.pb'
+PATH_TO_FROZEN_GRAPH = MODEL_NAME + '/frozen_inference_graph.pb'
 
 # List of the strings that is used to add correct label for each box.
-PATH_TO_LABELS = 'data/mnist_label_map.pbtxt'
+PATH_TO_LABELS = os.path.join('data', 'mscoco_label_map.pbtxt')
+
+# Download Model
+if not os.path.exists(MODEL_FILE):
+  opener = urllib.request.URLopener()
+  opener.retrieve(DOWNLOAD_BASE + MODEL_FILE, MODEL_FILE)
+  tar_file = tarfile.open(MODEL_FILE)
+  for file in tar_file.getmembers():
+    file_name = os.path.basename(file.name)
+    if 'frozen_inference_graph.pb' in file_name:
+      tar_file.extract(file, os.getcwd())
 
 # Load a (frozen) Tensorflow model into memory.
 detection_graph = tf.Graph()
@@ -50,17 +63,15 @@ def load_image_into_numpy_array(image):
       (im_height, im_width, 3)).astype(np.uint8)
 
 
-# Test images in the PATH_TO_TEST_IMAGES_DIR
-TEST_IMAGE_PATHS = []
-PATH_TO_TEST_IMAGES_DIR = './images'
-for file in os.listdir(PATH_TO_TEST_IMAGES_DIR):
-  if file.endswith('jpg') or file.endswith('jpeg') or file.endswith('gif') or file.endswith('png') or file.endswith('bmp'):
-    print("file:", file)
-    TEST_IMAGE_PATHS.append(os.path.join(PATH_TO_TEST_IMAGES_DIR, file))
+# For the sake of simplicity we will use only 2 images:
+# image1.jpg
+# image2.jpg
+# If you want to test the code with your images, just add path to the images to the TEST_IMAGE_PATHS.
+PATH_TO_TEST_IMAGES_DIR = '../images'
+TEST_IMAGE_PATHS = [ os.path.join(PATH_TO_TEST_IMAGES_DIR, 'handwrite_digits.jpeg') ]
 
 # Size, in inches, of the output images.
 IMAGE_SIZE = (12, 8)
-
 
 def run_inference_for_single_image(image, graph):
   with graph.as_default():
@@ -97,7 +108,6 @@ def run_inference_for_single_image(image, graph):
       # Run inference
       output_dict = sess.run(tensor_dict,
                              feed_dict={image_tensor: np.expand_dims(image, 0)})
-      print("Run inference:", output_dict)
 
       # all outputs are float32 numpy arrays, so convert types as appropriate
       output_dict['num_detections'] = int(output_dict['num_detections'][0])
@@ -120,7 +130,6 @@ for image_path in TEST_IMAGE_PATHS:
   image_np_expanded = np.expand_dims(image_np, axis=0)
   # Actual detection.
   output_dict = run_inference_for_single_image(image_np, detection_graph)
-  print(output_dict)
   # Visualization of the results of a detection.
   vis_util.visualize_boxes_and_labels_on_image_array(
       image_np,

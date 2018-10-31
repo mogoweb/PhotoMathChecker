@@ -32,7 +32,7 @@ def create_mnist_tf_examples(X, Y, jpg_output_path):
 
   mnist_tf_examples = []
 
-  for i in range(1):
+  for i in range(9999):
     # Write Image file
     filename = "{0}/{1:05d}.jpg".format(jpg_output_path, i)
     print(filename)
